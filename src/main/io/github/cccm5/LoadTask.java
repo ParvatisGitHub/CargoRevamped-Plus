@@ -16,10 +16,7 @@ public class LoadTask extends CargoTask {
 
     protected void execute() {
         List<Inventory> invs = Utils.getInventoriesWithSpace(craft, item.getMainItem(), Material.CHEST,
-                Material.TRAPPED_CHEST);
-        if (!CargoMain.isIsPre1_13()) {
-            invs.addAll(Utils.getInventoriesWithSpace(craft, item.getMainItem(), Material.BARREL));
-        }
+                Material.TRAPPED_CHEST, Material.BARREL);
 
         Inventory inv = invs.get(0);
         int loaded = 0;

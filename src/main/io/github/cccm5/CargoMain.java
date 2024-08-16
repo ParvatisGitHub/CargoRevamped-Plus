@@ -44,7 +44,6 @@ public class CargoMain extends JavaPlugin implements Listener {
     private static double unloadTax,loadTax;
     private static CargoMain instance;
     private static int delay;//ticks
-    private static boolean isPre1_13 = false;
     private static Material SIGN_POST = Material.getMaterial("SIGN_POST");
     private static Main dtlTradersPlugin;
     private CraftManager craftManager;
@@ -53,22 +52,11 @@ public class CargoMain extends JavaPlugin implements Listener {
     private static boolean debug;
     private double scanRange;
 
-    public static boolean isIsPre1_13() {
-        return isPre1_13;
-    }
-
     public void onEnable() {
         logger = this.getLogger();
         this.getServer().getPluginManager().registerEvents(this, this);
         playersInQue = new ArrayList<Player>();
         instance = this;
-        //************************
-        //* Check server version *
-        //************************
-        String packageName = getServer().getClass().getPackage().getName();
-        String version = packageName.substring(packageName.lastIndexOf('.') + 1);
-        String[] parts = version.split("_");
-        isPre1_13 = Integer.parseInt(parts[1]) < 13;
         //************************
         //*       Configs        *
         //************************
@@ -289,10 +277,7 @@ public class CargoMain extends JavaPlugin implements Listener {
         assert finalItem!=null;
         String itemName = finalItem.getMainItem().getItemMeta().getDisplayName() != null && finalItem.getMainItem().getItemMeta().getDisplayName().length() > 0 ? finalItem.getMainItem().getItemMeta().getDisplayName() : finalItem.getMainItem().getType().name().toLowerCase();
 
-        List<Inventory> invs = Utils.getInventories(playerCraft, finalItem.getMainItem(), Material.CHEST, Material.TRAPPED_CHEST);
-        if (!CargoMain.isIsPre1_13()) {
-            invs.addAll(Utils.getInventories(playerCraft, finalItem.getMainItem(), Material.BARREL));
-        }
+        List<Inventory> invs = Utils.getInventories(playerCraft, finalItem.getMainItem(), Material.CHEST, Material.TRAPPED_CHEST, Material.BARREL);
         int size = invs.size();
         if(size <=0 ){
             player.sendMessage(CargoMain.ERROR_TAG + "You have no " + itemName + " on this craft!");
@@ -384,10 +369,7 @@ public class CargoMain extends JavaPlugin implements Listener {
             return;
         }
 
-        List<Inventory> invs = Utils.getInventoriesWithSpace(playerCraft, finalItem.getMainItem(), Material.CHEST, Material.TRAPPED_CHEST);
-        if (!CargoMain.isIsPre1_13()) {
-            invs.addAll(Utils.getInventoriesWithSpace(playerCraft, finalItem.getMainItem(), Material.BARREL));
-        }
+        List<Inventory> invs = Utils.getInventoriesWithSpace(playerCraft, finalItem.getMainItem(), Material.CHEST, Material.TRAPPED_CHEST, Material.BARREL);
         int size = invs.size();
         if(size <=0 ){
             player.sendMessage(CargoMain.ERROR_TAG + "You don't have any space for " + itemName + " on this craft!");
