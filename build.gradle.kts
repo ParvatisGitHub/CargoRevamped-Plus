@@ -5,6 +5,7 @@ plugins {
 }
 
 repositories {
+    gradlePluginPortal()
     mavenLocal()
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
@@ -22,8 +23,8 @@ dependencies {
     compileOnly(files("libs/dtlTraders.jar"))
 }
 
-group = "cccm5.github.io"
-version = "2.0.0_beta-3"
+group = "io.github.cccm5"
+version = "2.0.0_beta-4"
 description = "Cargo"
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -43,7 +44,7 @@ tasks.processResources {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            groupId = "cccm5.github.io"
+            groupId = "io.github.cccm5"
             artifactId = "cargo"
             version = "${project.version}"
 
@@ -53,7 +54,7 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/apdevteam/apcargomerchant")
+            url = uri("https://maven.pkg.github.com/apdevteam/cargo")
             credentials {
                 username = System.getenv("GITHUB_ACTOR")
                 password = System.getenv("GITHUB_TOKEN")

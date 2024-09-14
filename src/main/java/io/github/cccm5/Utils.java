@@ -80,7 +80,7 @@ public class Utils
         if(item.getType() == Material.AIR)
             throw new IllegalArgumentException("item must not have type Material.AIR");
         ArrayList<Inventory> invs = new ArrayList<Inventory>();
-        for(Location loc : movecraftLocationToBukkitLocation(craft.getHitBox(),craft.getW()))
+        for(Location loc : movecraftLocationToBukkitLocation(craft.getHitBox(),craft.getWorld()))
             for(Material m : lookup){
                 boolean foundStack=false;
                 if(loc.getBlock().getType() == m)
@@ -130,7 +130,7 @@ public class Utils
         if(craft == null)
             throw new IllegalArgumentException("craft must not be null");
         ArrayList<Inventory> invs = new ArrayList<Inventory>();	
-        for(Location loc : movecraftLocationToBukkitLocation(craft.getHitBox(),craft.getW()))
+        for(Location loc : movecraftLocationToBukkitLocation(craft.getHitBox(),craft.getWorld()))
             for(Material m : lookup){
                 boolean foundStack=false;
                 if(loc.getBlock().getType() == m)
