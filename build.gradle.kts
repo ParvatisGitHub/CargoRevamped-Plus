@@ -23,7 +23,7 @@ dependencies {
 }
 
 group = "cccm5.github.io"
-version = "2.0.0_beta-2_gradle"
+version = "2.0.0_beta-3"
 description = "Cargo"
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
