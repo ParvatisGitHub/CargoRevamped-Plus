@@ -28,6 +28,7 @@ when you want to unload or load items move your craft within range and do the /u
 
 
 
-
-Will not be releasing a build on this as it requires the premium version of dtlTraders. if you want to use this plugin you will need to buy the premium version yourself, and replace the dtlTraders.jar with dtlTradersPlus.jar in the libs folder before compiling.
+The Release is for the free version of dtl traders and is for the branch CargoRevamped.
+Will not be releasing a build for the main branch as it requires the premium version of dtlTraders. if you want to use this plugin you will need to buy the premium version yourself, and replace the dtlTraders.jar with dtlTradersPlus.jar in the libs folder before compiling.
 Yes i know it's a hassle, it would have been easier if dtlTraders had a public repository but unfortunately it doesn't.
+I'm new to all this so forgive me if i'm not following best practices for naming standards or github maintinance or anything of the sort.
