@@ -111,7 +111,7 @@ public class CargoMain extends JavaPlugin implements Listener {
             getServer().getPluginManager().disablePlugin(this);	
             return;
         }
-        Plugin traders = getServer().getPluginManager().getPlugin("dtlTradersPlus");
+        Plugin traders = getServer().getPluginManager().getPlugin("dtlTraders");
         if (traders == null  || !(traders instanceof Main)){
             getServer().getPluginManager().disablePlugin(this);
         }

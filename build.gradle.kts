@@ -20,7 +20,7 @@ dependencies {
     compileOnly("net.countercraft:movecraft:+")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1")
     compileOnly("net.citizensnpcs:citizensapi:+")
-    compileOnly(files("libs/dtlTradersPlus.jar"))
+    compileOnly(files("libs/dtlTraders.jar"))
 }
 
 group = "io.github.cccm5"
