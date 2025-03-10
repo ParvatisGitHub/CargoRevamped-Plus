@@ -7,17 +7,22 @@ import com.degitise.minevid.dtlTraders.guis.gui.TradeGUIPage;
 import com.degitise.minevid.dtlTraders.guis.items.AGUIItem;
 import com.degitise.minevid.dtlTraders.guis.items.TradableGUIItem;
 import com.degitise.minevid.dtlTraders.utils.citizens.TraderTrait;
+
 import net.citizensnpcs.api.CitizensAPI;
 import net.citizensnpcs.api.npc.NPC;
+
 import net.countercraft.movecraft.craft.Craft;
 import net.countercraft.movecraft.craft.CraftManager;
 import net.countercraft.movecraft.MovecraftLocation;
+
 import net.milkbowl.vault.economy.Economy;
+
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.block.Sign;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabExecutor;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -32,9 +37,12 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+
 public class CargoMain extends JavaPlugin implements Listener {
     public static final String ERROR_TAG = ChatColor.RED + "Error: " + ChatColor.DARK_RED;
     public static final String SUCCESS_TAG = ChatColor.DARK_AQUA + "Cargo: " + ChatColor.WHITE;
@@ -52,6 +60,7 @@ public class CargoMain extends JavaPlugin implements Listener {
     private static boolean debug;
     private double scanRange;
 
+//imports config and disables if missing required plugins
     public void onEnable() {
         logger = this.getLogger();
         this.getServer().getPluginManager().registerEvents(this, this);
@@ -102,7 +111,7 @@ public class CargoMain extends JavaPlugin implements Listener {
             getServer().getPluginManager().disablePlugin(this);	
             return;
         }
-        Plugin traders = getServer().getPluginManager().getPlugin("dtlTraders");
+        Plugin traders = getServer().getPluginManager().getPlugin("dtlTradersPlus");
         if (traders == null  || !(traders instanceof Main)){
             getServer().getPluginManager().disablePlugin(this);
         }
@@ -117,23 +126,74 @@ public class CargoMain extends JavaPlugin implements Listener {
     }
 
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) { // Plugin
+
+
+        //*****************************************
+        //****         UNLOAD COMMAND          ****
+        //*****************************************
+
         if (command.getName().equalsIgnoreCase("unload")) {
             if(!(sender instanceof Player)){
                 sender.sendMessage(ERROR_TAG + "You need to be a player to execute that command!");
                 return true;
+			}
+
+        // Default to unload all
+        int moveAmount = -1;
+
+        // If an argument is passed, try to parse it as a number
+        if (args.length > 0) {
+            try {
+                moveAmount = Integer.parseInt(args[0]); // Number of items to unload
+            } catch (NumberFormatException e) {
+                if ("all".equalsIgnoreCase(args[0])) {
+                    moveAmount = -1; // Unload all
+                } else {
+                    sender.sendMessage(ERROR_TAG + "Invalid argument! Use 'all' or a specific number.");
+                    return true;
+                }
             }
-            unload((Player) sender);
-            return true;
         }
 
+        unload((Player) sender, moveAmount);
+        return true;
+    }
+
+		
+        //*****************************************
+        //****         LOAD COMMAND            ****
+        //*****************************************
+		
         if (command.getName().equalsIgnoreCase("load")) {
             if(!(sender instanceof Player)){
                 sender.sendMessage(ERROR_TAG + "You need to be a player to execute that command!");
                 return true;
             }
-            load((Player) sender);
-            return true;
+
+        // Default to load all
+        int moveAmount = -1;
+
+        // If an argument is passed, try to parse it as a number
+        if (args.length > 0) {
+            try {
+                moveAmount = Integer.parseInt(args[0]); // Number of items to Load
+            } catch (NumberFormatException e) {
+                if ("all".equalsIgnoreCase(args[0])) {
+                    moveAmount = -1; // Load all
+                } else {
+                    sender.sendMessage(ERROR_TAG + "Invalid argument! Use 'all' or a specific number.");
+                    return true;
+                }
+            }
         }
+
+        load((Player) sender, moveAmount);
+        return true;
+    }
+
+        //*****************************************
+        //****         CARGO COMMAND           ****
+        //*****************************************
 
         if (command.getName().equalsIgnoreCase("cargo")) {
             if(!sender.hasPermission("Cargo.cargo")){
@@ -162,11 +222,11 @@ public class CargoMain extends JavaPlugin implements Listener {
         }
         Sign sign = (Sign) e.getClickedBlock().getState();
         if (sign.getLine(0).equals(ChatColor.DARK_AQUA + "[UnLoad]")) {
-            unload(e.getPlayer());
+            unload(e.getPlayer(), -1);
             return;
         }
         if (sign.getLine(0).equals(ChatColor.DARK_AQUA + "[Load]")) {
-            load(e.getPlayer());
+            load(e.getPlayer(), -1);
         }
 
     }
@@ -210,7 +270,7 @@ public class CargoMain extends JavaPlugin implements Listener {
         return instance;
     }
 
-    private void unload(Player player){
+    private void unload(Player player, int moveAmount){
         if(!player.hasPermission("Cargo.unload")){
             player.sendMessage(ERROR_TAG + "You don't have permission to do that!");
             return;
@@ -225,6 +285,7 @@ public class CargoMain extends JavaPlugin implements Listener {
             player.sendMessage(ERROR_TAG + "You need to be piloting a craft to do that!");
             return;
         }
+		
         //NPC cargoMerchant=null;
         List<NPC> nearbyMerchants = new ArrayList<>();
         double distance;//, lastScan = scanRange;
@@ -248,32 +309,48 @@ public class CargoMain extends JavaPlugin implements Listener {
         }
         String guiName;
         TradableGUIItem finalItem = null;
-        for(NPC cargoMerchant : nearbyMerchants) {
-            if(finalItem!=null)
-                break;
-            guiName = cargoMerchant.getTrait(TraderTrait.class).getGUIName();
-            AGUI gui = dtlTradersPlugin.getGuiListService().getGUI(guiName);
-            TradeGUI tradeGUI = (TradeGUI) gui;
-            ItemStack compareItem = player.getInventory().getItemInMainHand().clone();
-            finalItem = null;
-            for (TradeGUIPage page : tradeGUI.getPages()) {
-                if (page == null) continue;
-                for (AGUIItem tempItem : page.getItems("sell")) {
-                    if (!(tempItem instanceof TradableGUIItem)) continue;
-                    if (tempItem.getMainItem().isSimilar(compareItem)) {
-                        if (tempItem.getMainItem().getAmount() > 1)
-                            continue;
-                        finalItem = (TradableGUIItem) tempItem;
-                        break;
-                    }
-                }
-                    if (finalItem == null || finalItem.getTradePrice() == 0.0) {
-                        player.sendMessage(ERROR_TAG + "You need to be holding a cargo item to do that!");
-                        return;
-                    }
+		for (NPC cargoMerchant : nearbyMerchants) {
+			if (finalItem != null) {
+				break;
+			}
+    
+			guiName = cargoMerchant.getTrait(TraderTrait.class).getGUIName();
+			AGUI gui = dtlTradersPlugin.getGuiListService().getGUI(guiName);
+			TradeGUI tradeGUI = (TradeGUI) gui;
+    
+			ItemStack compareItem = player.getInventory().getItemInMainHand().clone();
+    
+			// Make sure to log the number of pages
+			List<TradeGUIPage> pages = tradeGUI.getPages();
+			//player.sendMessage(ERROR_TAG + "Number of pages: " + pages.size()); // Debugging output
+    
+			// Loop through all pages
+			for (TradeGUIPage page : pages) {
+				if (page == null) continue;
 
-            }
-        }
+				// Loop through the items on the current page
+				for (AGUIItem tempItem : page.getItems("sell")) {
+					if (!(tempItem instanceof TradableGUIItem)) continue;
+
+					if (tempItem.getMainItem().isSimilar(compareItem)) {
+						if (tempItem.getMainItem().getAmount() > 1) continue;
+                
+						finalItem = (TradableGUIItem) tempItem;  // Assign the matching item
+						break;  // Break out of the inner loop
+					}
+				}
+				// Check if a valid item was found, break the outer loop if so
+				if (finalItem != null) {
+				break;
+			}
+		}
+
+		// If no valid item found, notify the player
+		if (finalItem == null || finalItem.getTradePrice() == 0.0) {
+			player.sendMessage(ERROR_TAG + "You need to be holding a cargo item to do that!");
+			return;
+		}
+	}
         assert finalItem!=null;
         String itemName = finalItem.getMainItem().getItemMeta().getDisplayName() != null && finalItem.getMainItem().getItemMeta().getDisplayName().length() > 0 ? finalItem.getMainItem().getItemMeta().getDisplayName() : finalItem.getMainItem().getType().name().toLowerCase();
 
@@ -284,13 +361,14 @@ public class CargoMain extends JavaPlugin implements Listener {
             return;
         }
 
-        player.sendMessage(SUCCESS_TAG + "Started unloading cargo");
         playersInQue.add(player);
-        new UnloadTask(craftManager.getCraftByPlayer(player),finalItem ).runTaskTimer(this,delay,delay);
+		//modified unload task to receive a moveAmount- allows players to specify how much to unload
+		new UnloadTask(craftManager.getCraftByPlayer(player), finalItem, moveAmount).runTaskTimer(this, delay, delay);
         new ProcessingTask(player, finalItem,size).runTaskTimer(this,0,20);
+		player.sendMessage(SUCCESS_TAG + "Started unloading cargo");
     }
 
-    private void load(Player player){
+    private void load(Player player, int moveAmount){
         if(!player.hasPermission("Cargo.load")){
             player.sendMessage(ERROR_TAG + "You don't have permission to do that!");
             return;
@@ -329,38 +407,48 @@ public class CargoMain extends JavaPlugin implements Listener {
         }
         String guiName;
         TradableGUIItem finalItem = null;
-        for(NPC cargoMerchant : nearbyMerchants) {
-            guiName = cargoMerchant.getTrait(TraderTrait.class).getGUIName();
-            AGUI gui = dtlTradersPlugin.getGuiListService().getGUI(guiName);
-            TradeGUI tradeGUI = (TradeGUI) gui;
-            ItemStack compareItem = player.getInventory().getItemInMainHand().clone();
-            for (TradeGUIPage page : tradeGUI.getPages()) {
-                if (page == null) 
-                    continue;
+		for (NPC cargoMerchant : nearbyMerchants) {
+			if (finalItem != null) {
+				break;
+			}
+    
+			guiName = cargoMerchant.getTrait(TraderTrait.class).getGUIName();
+			AGUI gui = dtlTradersPlugin.getGuiListService().getGUI(guiName);
+			TradeGUI tradeGUI = (TradeGUI) gui;
+    
+			ItemStack compareItem = player.getInventory().getItemInMainHand().clone();
+    
+			// Make sure to log the number of pages
+			List<TradeGUIPage> pages = tradeGUI.getPages();
+			//player.sendMessage(ERROR_TAG + "Number of pages: " + pages.size()); // Debugging output
+    
+			// Loop through all pages
+			for (TradeGUIPage page : pages) {
+				if (page == null) continue;
 
-                for (AGUIItem tempItem : page.getItems("buy")) {
-                    if (!(tempItem instanceof TradableGUIItem))
-                        continue;
+				// Loop through the items on the current page
+				for (AGUIItem tempItem : page.getItems("buy")) {
+					if (!(tempItem instanceof TradableGUIItem)) continue;
 
-                    TradableGUIItem tradeItem = (TradableGUIItem) tempItem;
-                    if (tradeItem.getMainItem().isSimilar(compareItem)) {
-                        if (tempItem.getMainItem().getAmount() > 1)
-                            continue;
+					if (tempItem.getMainItem().isSimilar(compareItem)) {
+						if (tempItem.getMainItem().getAmount() > 1) continue;
+                
+						finalItem = (TradableGUIItem) tempItem;  // Assign the matching item
+						break;  // Break out of the inner loop
+					}
+				}
+				// Check if a valid item was found, break the outer loop if so
+				if (finalItem != null) {
+				break;
+			}
+		}
 
-                        finalItem = tradeItem;
-                        break;
-                    }
-                }
-                if (finalItem != null)
-                    break;
-            }
-            if (finalItem != null)
-                break;
-        }
-        if (finalItem == null || finalItem.getTradePrice() == 0.0) {
-            player.sendMessage(ERROR_TAG + "You need to be holding a cargo item to do that!");
-            return;
-        }
+		// If no valid item found, notify the player
+		if (finalItem == null || finalItem.getTradePrice() == 0.0) {
+			player.sendMessage(ERROR_TAG + "You need to be holding a cargo item to do that!");
+			return;
+		}
+	}
 
         final ItemMeta meta = finalItem.getMainItem().getItemMeta();
         String itemName = meta.getDisplayName() != null && meta.getDisplayName().length() > 0 ? meta.getDisplayName() : finalItem.getMainItem().getType().name().toLowerCase();
@@ -377,7 +465,7 @@ public class CargoMain extends JavaPlugin implements Listener {
         }
 
         playersInQue.add(player);
-        new LoadTask(craftManager.getCraftByPlayer(player),finalItem ).runTaskTimer(this,delay,delay);
+        new LoadTask(craftManager.getCraftByPlayer(player),finalItem, moveAmount).runTaskTimer(this,delay,delay);
         new ProcessingTask(player, finalItem,size).runTaskTimer(this,0,20);
         player.sendMessage(SUCCESS_TAG + "Started loading cargo");
     }
