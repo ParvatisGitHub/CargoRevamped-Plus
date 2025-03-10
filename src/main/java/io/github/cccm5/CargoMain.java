@@ -270,26 +270,29 @@ public class CargoMain extends JavaPlugin implements Listener {
         return instance;
     }
 
-    private void unload(Player player, int moveAmount){
-        if(!player.hasPermission("Cargo.unload")){
-            player.sendMessage(ERROR_TAG + "You don't have permission to do that!");
-            return;
-        }
-        Craft playerCraft = craftManager.getCraftByPlayer(player);
-        if(playersInQue.contains(player)){
-            player.sendMessage(ERROR_TAG + "You're already moving cargo!");
-            return;
-        }
+    private void unload(Player player, int moveAmount) {
+    if (!player.hasPermission("Cargo.unload")) {
+        player.sendMessage(ERROR_TAG + "You don't have permission to do that!");
+        return;
+    }
 
-        if(playerCraft == null){
-            player.sendMessage(ERROR_TAG + "You need to be piloting a craft to do that!");
-            return;
-        }
-		
-        //NPC cargoMerchant=null;
+    Craft playerCraft = craftManager.getCraftByPlayer(player);
+    if (playersInQue.contains(player)) {
+        player.sendMessage(ERROR_TAG + "You're already moving cargo!");
+        return;
+    }
+
+    if (playerCraft == null) {
+        player.sendMessage(ERROR_TAG + "You need to be piloting a craft to do that!");
+        return;
+    }
+
+    // List of nearby merchants
         List<NPC> nearbyMerchants = new ArrayList<>();
         double distance;//, lastScan = scanRange;
         MovecraftLocation loc = playerCraft.getHitBox().getMidPoint();
+		
+		//Find nearby npcs with cargo trait
         for(NPC npc :Utils.getNPCsWithTrait(CargoTrait.class)){
             if(!npc.isSpawned())
                 continue;
@@ -302,71 +305,81 @@ public class CargoMain extends JavaPlugin implements Listener {
             player.sendMessage(ERROR_TAG + "You need to be within " +  scanRange + " blocks of a merchant to use that command!");
             return;
         }
-
+//if player not holding a cargo item
         if(player.getInventory().getItemInMainHand() == null || player.getInventory().getItemInMainHand().getType() == Material.AIR){
+            logger.info(player.getInventory().getItemInMainHand().getType().name());
             player.sendMessage(ERROR_TAG + "You need to be holding a cargo item to do that!");
             return;
         }
         String guiName;
         TradableGUIItem finalItem = null;
-		for (NPC cargoMerchant : nearbyMerchants) {
-			if (finalItem != null) {
-				break;
-			}
-    
+		double bestPrice = Double.MIN_VALUE; //keep track of best deal so far
+		
+		
+		for (NPC cargoMerchant : nearbyMerchants) {    
 			guiName = cargoMerchant.getTrait(TraderTrait.class).getGUIName();
 			AGUI gui = dtlTradersPlugin.getGuiListService().getGUI(guiName);
-			TradeGUI tradeGUI = (TradeGUI) gui;
-    
-			ItemStack compareItem = player.getInventory().getItemInMainHand().clone();
-    
-			// Make sure to log the number of pages
-			List<TradeGUIPage> pages = tradeGUI.getPages();
-			//player.sendMessage(ERROR_TAG + "Number of pages: " + pages.size()); // Debugging output
-    
-			// Loop through all pages
-			for (TradeGUIPage page : pages) {
-				if (page == null) continue;
+			
+			if (gui instanceof TradeGUI) {
+				TradeGUI tradeGUI = (TradeGUI) gui;
+				ItemStack compareItem = player.getInventory().getItemInMainHand().clone();
+				List<TradeGUIPage> pages = tradeGUI.getPages();
+			   
+				// Loop through all pages
+				for (TradeGUIPage page : pages) {
+					if (page == null) continue;
 
-				// Loop through the items on the current page
-				for (AGUIItem tempItem : page.getItems("sell")) {
-					if (!(tempItem instanceof TradableGUIItem)) continue;
+					// Loop through the items on the current page
+					for (AGUIItem tempItem : page.getItems("buy")) {
+						if (!(tempItem instanceof TradableGUIItem)) continue;
 
-					if (tempItem.getMainItem().isSimilar(compareItem)) {
-						if (tempItem.getMainItem().getAmount() > 1) continue;
+						if (tempItem.getMainItem().isSimilar(compareItem)) {
+							if (tempItem.getMainItem().getAmount() > 1) continue;
                 
-						finalItem = (TradableGUIItem) tempItem;  // Assign the matching item
-						break;  // Break out of the inner loop
+							// Get the price of the current item
+							double currentPrice = ((TradableGUIItem) tempItem).getTradePrice();
+							
+							//If the current price is lower than the best price found, update the final item.
+							if (currentPrice > bestPrice) {
+                            bestPrice = currentPrice;
+                            finalItem = (TradableGUIItem) tempItem;  // Assign the new best priced item
+							}
+						}
 					}
 				}
-				// Check if a valid item was found, break the outer loop if so
-				if (finalItem != null) {
-				break;
 			}
 		}
 
 		// If no valid item found, notify the player
 		if (finalItem == null || finalItem.getTradePrice() == 0.0) {
-			player.sendMessage(ERROR_TAG + "You need to be holding a cargo item to do that!");
+			player.sendMessage(ERROR_TAG + "You need to be holding a valid cargo item to do that!");
 			return;
 		}
-	}
-        assert finalItem!=null;
-        String itemName = finalItem.getMainItem().getItemMeta().getDisplayName() != null && finalItem.getMainItem().getItemMeta().getDisplayName().length() > 0 ? finalItem.getMainItem().getItemMeta().getDisplayName() : finalItem.getMainItem().getType().name().toLowerCase();
 
-        List<Inventory> invs = Utils.getInventories(playerCraft, finalItem.getMainItem(), Material.CHEST, Material.TRAPPED_CHEST, Material.BARREL);
-        int size = invs.size();
-        if(size <=0 ){
-            player.sendMessage(CargoMain.ERROR_TAG + "You have no " + itemName + " on this craft!");
-            return;
-        }
+    // Ensure finalItem is not null
+    assert finalItem != null;
 
-        playersInQue.add(player);
-		//modified unload task to receive a moveAmount- allows players to specify how much to unload
-		new UnloadTask(craftManager.getCraftByPlayer(player), finalItem, moveAmount).runTaskTimer(this, delay, delay);
-        new ProcessingTask(player, finalItem,size).runTaskTimer(this,0,20);
-		player.sendMessage(SUCCESS_TAG + "Started unloading cargo");
+    String itemName = finalItem.getMainItem().getItemMeta().getDisplayName() != null && finalItem.getMainItem().getItemMeta().getDisplayName().length() > 0
+            ? finalItem.getMainItem().getItemMeta().getDisplayName() : finalItem.getMainItem().getType().name().toLowerCase();
+
+    // Get inventories on the craft that match the item
+    List<Inventory> invs = Utils.getInventories(playerCraft, finalItem.getMainItem(), Material.CHEST, Material.TRAPPED_CHEST, Material.BARREL);
+    int size = invs.size();
+
+    // If no matching inventories found
+    if (size <= 0) {
+        player.sendMessage(CargoMain.ERROR_TAG + "You have no " + itemName + " on this craft!");
+        return;
     }
+
+    // Add the player to the queue and start unloading
+    playersInQue.add(player);
+
+    // Start unloading task and processing task
+    new UnloadTask(craftManager.getCraftByPlayer(player), finalItem, moveAmount).runTaskTimer(this, delay, delay);
+    new ProcessingTask(player, finalItem, size).runTaskTimer(this, 0, 20);
+    player.sendMessage(SUCCESS_TAG + "Started unloading cargo");
+}
 
     private void load(Player player, int moveAmount){
         if(!player.hasPermission("Cargo.load")){
@@ -387,6 +400,8 @@ public class CargoMain extends JavaPlugin implements Listener {
         List<NPC> nearbyMerchants = new ArrayList<>();
         double distance;//, lastScan = scanRange;
         MovecraftLocation loc = playerCraft.getHitBox().getMidPoint();
+		
+		//Find nearby npcs with cargo trait
         for(NPC npc :Utils.getNPCsWithTrait(CargoTrait.class)){
             if(!npc.isSpawned())
                 continue;
@@ -399,7 +414,7 @@ public class CargoMain extends JavaPlugin implements Listener {
             player.sendMessage(ERROR_TAG + "You need to be within " +  scanRange + " blocks of a merchant to use that command!");
             return;
         }
-
+//if player not holding a cargo item
         if(player.getInventory().getItemInMainHand() == null || player.getInventory().getItemInMainHand().getType() == Material.AIR){
             logger.info(player.getInventory().getItemInMainHand().getType().name());
             player.sendMessage(ERROR_TAG + "You need to be holding a cargo item to do that!");
@@ -407,39 +422,40 @@ public class CargoMain extends JavaPlugin implements Listener {
         }
         String guiName;
         TradableGUIItem finalItem = null;
-		for (NPC cargoMerchant : nearbyMerchants) {
-			if (finalItem != null) {
-				break;
-			}
-    
+		double bestPrice = Double.MAX_VALUE; //keep track of best deal so far
+		
+		
+		for (NPC cargoMerchant : nearbyMerchants) {    
 			guiName = cargoMerchant.getTrait(TraderTrait.class).getGUIName();
 			AGUI gui = dtlTradersPlugin.getGuiListService().getGUI(guiName);
-			TradeGUI tradeGUI = (TradeGUI) gui;
-    
-			ItemStack compareItem = player.getInventory().getItemInMainHand().clone();
-    
-			// Make sure to log the number of pages
-			List<TradeGUIPage> pages = tradeGUI.getPages();
-			//player.sendMessage(ERROR_TAG + "Number of pages: " + pages.size()); // Debugging output
-    
-			// Loop through all pages
-			for (TradeGUIPage page : pages) {
-				if (page == null) continue;
+			
+			if (gui instanceof TradeGUI) {
+				TradeGUI tradeGUI = (TradeGUI) gui;
+				ItemStack compareItem = player.getInventory().getItemInMainHand().clone();
+				List<TradeGUIPage> pages = tradeGUI.getPages();
+			   
+				// Loop through all pages
+				for (TradeGUIPage page : pages) {
+					if (page == null) continue;
 
-				// Loop through the items on the current page
-				for (AGUIItem tempItem : page.getItems("buy")) {
-					if (!(tempItem instanceof TradableGUIItem)) continue;
+					// Loop through the items on the current page
+					for (AGUIItem tempItem : page.getItems("buy")) {
+						if (!(tempItem instanceof TradableGUIItem)) continue;
 
-					if (tempItem.getMainItem().isSimilar(compareItem)) {
-						if (tempItem.getMainItem().getAmount() > 1) continue;
+						if (tempItem.getMainItem().isSimilar(compareItem)) {
+							if (tempItem.getMainItem().getAmount() > 1) continue;
                 
-						finalItem = (TradableGUIItem) tempItem;  // Assign the matching item
-						break;  // Break out of the inner loop
+							// Get the price of the current item
+							double currentPrice = ((TradableGUIItem) tempItem).getTradePrice();
+							
+							//If the current price is lower than the best price found, update the final item.
+							if (currentPrice < bestPrice) {
+                            bestPrice = currentPrice;
+                            finalItem = (TradableGUIItem) tempItem;  // Assign the new best priced item
+							}
+						}
 					}
 				}
-				// Check if a valid item was found, break the outer loop if so
-				if (finalItem != null) {
-				break;
 			}
 		}
 
@@ -448,7 +464,6 @@ public class CargoMain extends JavaPlugin implements Listener {
 			player.sendMessage(ERROR_TAG + "You need to be holding a cargo item to do that!");
 			return;
 		}
-	}
 
         final ItemMeta meta = finalItem.getMainItem().getItemMeta();
         String itemName = meta.getDisplayName() != null && meta.getDisplayName().length() > 0 ? meta.getDisplayName() : finalItem.getMainItem().getType().name().toLowerCase();
